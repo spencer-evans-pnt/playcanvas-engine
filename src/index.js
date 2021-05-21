@@ -3,6 +3,7 @@ import './polyfill/array-fill.js';
 import './polyfill/array-find.js';
 import './polyfill/array-find-index.js';
 import './polyfill/math-log2.js';
+import './polyfill/math-clamp01.js';
 import './polyfill/math-sign.js';
 import './polyfill/number-isfinite.js';
 import './polyfill/object-assign.js';
@@ -44,12 +45,14 @@ export { Vec3 } from './math/vec3.js';
 export { Vec4 } from './math/vec4.js';
 
 // SHAPE
+export * from './shape/constants.js';
 export { BoundingBox } from './shape/bounding-box.js';
 export { BoundingSphere } from './shape/bounding-sphere.js';
 export { Frustum } from './shape/frustum.js';
 export { OrientedBox } from './shape/oriented-box.js';
 export { Plane } from './shape/plane.js';
 export { Ray } from './shape/ray.js';
+export { SplinePath, SplinePoint } from './shape/spline-path.js';
 
 // GRAPHICS
 export * from './graphics/constants.js';
