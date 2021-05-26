@@ -94,21 +94,19 @@ class SplinePath {
         return position;
     }
 
-    getPointNewtons(d, totalLen, debug) {
+    getPointNewtons(d, totalLen) {
         let tLast = d / totalLen;
         let tNext = tLast;
 
         let iterations = 0;
         const maxIterations = 16;
 
-        if (debug) console.group(`searching for constant speed t with desired distance ${d} and total length ${totalLen}; initial t: ${tLast}`);
-
         // use bisection to get close
         let tMax = 1;
         let tMin = 0;
         while (tMax - tMin > 0.01 && iterations < maxIterations) {
             const tMid = (tMax + tMin) / 2;
-            if (d - this.getSimpsonsArcLength(0, tMid, debug) < 0) {
+            if (d - this.getSimpsonsArcLength(0, tMid) < 0) {
                 tMax = tMid;
             } else {
                 tMin = tMid;
@@ -116,7 +114,6 @@ class SplinePath {
             iterations++;
         }
         tNext = (tMax + tMin) / 2;
-        if (debug) console.log(`found tNext ${tNext} using bisection after ${iterations} iterations`);
 
         // use newton's method to find a more accurate t
         iterations = 0;
@@ -126,17 +123,7 @@ class SplinePath {
                 ((this.getSimpsonsArcLength(0, tLast) - d) /
                  this.getArcLengthIntegrand(tLast));
             iterations++;
-            if (debug) console.log(`iteration ${iterations}: ${tLast}, ${tNext}`);
         } while (Math.abs(tLast - tNext) > 0.001 && iterations < maxIterations);
-
-        if (debug) {
-            if (iterations >= maxIterations) {
-                console.warn(`failed to find suitable t for ${d}; last guess: ${tLast}`);
-            } else {
-                console.log(`found constant speed t ${tLast} using newton's method after ${iterations} iterations`);
-            }
-            console.groupEnd();
-        }
 
         // revert to our less accurate bisection result?
         if (iterations === maxIterations) {
@@ -198,14 +185,13 @@ class SplinePath {
         }
     }
 
-    getArcLengthIntegrand(t0, debug) {
+    getArcLengthIntegrand(t0) {
         const { i1, i2, t } = this._pointsForT(t0);
         const len = this._arcLengthIntegrand(
             this.points[i1].point,
             this.points[i1].control2,
             this.points[i2].control1,
             this.points[i2].point, t);
-        if (debug) console.log(`arc len integrand: ${len}`);
         return len;
     }
 
@@ -213,7 +199,7 @@ class SplinePath {
         return Spline.getFirstDerivative(p0, p1, p2, p3, t).length();
     }
 
-    getSimpsonsArcLength(tStart, tEnd, debug) {
+    getSimpsonsArcLength(tStart, tEnd) {
         const { i1: starti1, i2: starti2, t: startt } = this._pointsForT(tStart);
         const { i1: endi1, i2: endi2, t: endt } = this._pointsForT(tEnd);
 
@@ -226,10 +212,8 @@ class SplinePath {
                 this.points[starti2].point,
                 startt, endt
             );
-            if (debug) console.log(`[${tStart}, ${tEnd}] => points[${starti1}, ${starti2}] :: [${startt},${endt}], len: ${len}`);
             return len;
         } else if (starti2 === endi1) {
-            if (debug) console.group('multiple chords');
             // points are on separate chords; combine
             const c1Len = this._simpsonsArcLength(
                 this.points[starti1].point,
@@ -245,11 +229,6 @@ class SplinePath {
                 this.points[endi2].point,
                 0, endt
             );
-            if (debug) {
-                console.log(`[${tStart}, ${tEnd}] => points[${starti1}, ${starti2}] :: ${startt}; points[${endi1}, ${endi2}] :: ${endt}`);
-                console.log(`found lengths ${c1Len} + ${c2Len} = ${c1Len + c2Len}`);
-                console.groupEnd();
-            }
             return c1Len + c2Len;
         }
 
