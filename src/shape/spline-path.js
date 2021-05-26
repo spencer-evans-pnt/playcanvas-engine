@@ -63,6 +63,64 @@ class SplinePath {
         return this._chordLengths.reduce((sum, len) => sum + len);
     }
 
+    _reevaluateLength(method = 3) {
+        this._chordLengths = [];
+        var distance = new Vec3();
+        for (var i = 1; i < this.points.length; i++) {
+            var p1 = this.points[i - 1];
+            var p2 = this.points[i];
+
+            var length;
+            switch (method) {
+                case 0: {
+                    // linear
+                    length = distance.sub2(p1.point, p2.point).length();
+                    break;
+                }
+                case 1: {
+                    // break into linear segments
+                    const iterations = 32;
+                    let pLast = Spline.getPoint(
+                        p1.point,
+                        p1.control2,
+                        p2.control1,
+                        p2.point, 0);
+                    let totalLen = 0;
+                    for (let ii = 1; ii <= iterations; ii++) {
+                        const t = ii / iterations;
+                        const pCurrent = Spline.getPoint(
+                            p1.point,
+                            p1.control2,
+                            p2.control1,
+                            p2.point, t);
+                        const len = distance.sub2(pCurrent, pLast).length();
+                        totalLen += len;
+                        pLast = pCurrent.clone();
+                    }
+                    length = totalLen;
+                    break;
+                }
+                case 2: {
+                    // average chord and sum of net lengths
+                    var chordLen = distance.sub2(p1.point, p2.point).length();
+                    var s1Len = distance.sub2(p1.point, p1.control2).length();
+                    var s2Len = distance.sub2(p1.control2, p2.control1).length();
+                    var s3Len = distance.sub2(p2.control1, p2.point).length();
+                    var netLen = s1Len + s2Len + s3Len;
+                    length = (chordLen + netLen) / 2;
+                    break;
+                }
+                case 3: {
+                    // simpson's rule - use second degree polynomial
+                    length = this._simpsonsArcLength(p1.point, p1.control2, p2.control1, p2.point);
+                    break;
+                }
+            }
+
+            this._chordLengths.push(length);
+        }
+    }
+
     _pointsForT(t0) {
         let i1, i2;
         t0 = Math.clamp01(t0);
@@ -94,19 +152,21 @@ class SplinePath {
         return position;
     }
 
-    getPointNewtons(d, totalLen) {
+    getPointNewtons(d, totalLen, debug) {
         let tLast = d / totalLen;
         let tNext = tLast;
 
         let iterations = 0;
-        const maxIterations = 16;
+        const maxIterations = 8;
+
+        if (debug) console.group(`searching for constant speed t with desired distance ${d.toFixed(4)} and total length ${totalLen.toFixed(4)}; initial t: ${tLast.toFixed(4)}`);
 
         // use bisection to get close
         let tMax = 1;
         let tMin = 0;
         while (tMax - tMin > 0.01 && iterations < maxIterations) {
             const tMid = (tMax + tMin) / 2;
-            if (d - this.getSimpsonsArcLength(0, tMid) < 0) {
+            if (d - this.getApproxArcLength(0, tMid, 1, false) < 0) {
                 tMax = tMid;
             } else {
                 tMin = tMid;
@@ -114,16 +174,27 @@ class SplinePath {
             iterations++;
         }
         tNext = (tMax + tMin) / 2;
+        if (debug) console.log(`found tNext ${tNext.toFixed(4)} using bisection after ${iterations} iterations`);
 
         // use newton's method to find a more accurate t
         iterations = 0;
         do {
             tLast = tNext;
             tNext = tLast -
-                ((this.getSimpsonsArcLength(0, tLast) - d) /
-                 this.getArcLengthIntegrand(tLast));
+                ((this.getApproxArcLength(0, tLast, 1, debug) - d) /
+                 this.getArcLengthIntegrand(tLast, debug));
             iterations++;
+            if (debug) console.log(`iteration ${iterations}: ${tLast.toFixed(4)}, ${tNext.toFixed(4)}`);
         } while (Math.abs(tLast - tNext) > 0.001 && iterations < maxIterations);
+
+        if (debug) {
+            if (iterations >= maxIterations) {
+                console.warn(`failed to find suitable t for ${d.toFixed(4)}; last guess: ${tLast.toFixed(4)}, ${tNext.toFixed(4)}`);
+            } else {
+                console.log(`found constant speed t ${tLast.toFixed(4)} using newton's method after ${iterations} iterations`);
+            }
+            console.groupEnd();
+        }
 
         // revert to our less accurate bisection result?
         if (iterations === maxIterations) {
@@ -150,89 +221,91 @@ class SplinePath {
         return direction.normalize();
     }
 
-    _reevaluateLength(method = 2) {
-        this._chordLengths = [];
-        var distance = new Vec3();
-        for (var i = 1; i < this.points.length; i++) {
-            var p1 = this.points[i - 1];
-            var p2 = this.points[i];
-
-            var length;
-            switch (method) {
-                case 0: {
-                    // linear
-                    length = distance.sub2(p1.point, p2.point).length();
-                    break;
-                }
-                case 1: {
-                    // average chord and sum of net lengths
-                    var chordLen = distance.sub2(p1.point, p2.point).length();
-                    var s1Len = distance.sub2(p1.point, p1.control2).length();
-                    var s2Len = distance.sub2(p1.control2, p2.control1).length();
-                    var s3Len = distance.sub2(p2.control1, p2.point).length();
-                    var netLen = s1Len + s2Len + s3Len;
-                    length = (chordLen + netLen) / 2;
-                    break;
-                }
-                case 2: {
-                    // simpson's rule - use second degree polynomial
-                    length = this._simpsonsArcLength(p1.point, p1.control2, p2.control1, p2.point);
-                    break;
-                }
-            }
-
-            this._chordLengths.push(length);
-        }
-    }
-
-    getArcLengthIntegrand(t0) {
+    getArcLengthIntegrand(t0, debug) {
         const { i1, i2, t } = this._pointsForT(t0);
         const len = this._arcLengthIntegrand(
             this.points[i1].point,
             this.points[i1].control2,
             this.points[i2].control1,
             this.points[i2].point, t);
+        if (debug) console.log(`\tarc length integrand for ${t0.toFixed(4)} uses chords ${i1} and ${i2}, yields length ${len.toFixed(4)}`);
         return len;
     }
 
-    _arcLengthIntegrand(p0, p1, p2, p3, t) {
-        return Spline.getFirstDerivative(p0, p1, p2, p3, t).length();
-    }
-
-    getSimpsonsArcLength(tStart, tEnd) {
+    getApproxArcLength(tStart, tEnd, method = 0, debug = false) {
         const { i1: starti1, i2: starti2, t: startt } = this._pointsForT(tStart);
         const { i1: endi1, i2: endi2, t: endt } = this._pointsForT(tEnd);
 
+        debug = false;
+
         if (starti1 === endi1) {
             // both points are within the same chord
-            const len = this._simpsonsArcLength(
-                this.points[starti1].point,
-                this.points[starti1].control2,
-                this.points[starti2].control1,
-                this.points[starti2].point,
-                startt, endt
-            );
+            let len;
+            if (method === 0) {
+                len = this._segmentedArcLength(
+                    this.points[starti1].point,
+                    this.points[starti1].control2,
+                    this.points[starti2].control1,
+                    this.points[starti2].point,
+                    startt, endt
+                );
+            } else {
+                len = this._simpsonsArcLength(
+                    this.points[starti1].point,
+                    this.points[starti1].control2,
+                    this.points[starti2].control1,
+                    this.points[starti2].point,
+                    startt, endt
+                );
+            }
+            if (debug) console.log(`\t\ttEnd ${tEnd.toFixed(4)} requires a single chord\n` +
+                                   `\t\tchord uses points ${starti1} and ${starti2}, with t values [${startt.toFixed(4)}, ${endt.toFixed(4)}] yields length ${len.toFixed(4)}`);
             return len;
         } else if (starti2 === endi1) {
             // points are on separate chords; combine
-            const c1Len = this._simpsonsArcLength(
+            const c1Len = this._segmentedArcLength(
                 this.points[starti1].point,
                 this.points[starti1].control2,
                 this.points[starti2].control1,
                 this.points[starti2].point,
                 startt, 1
             );
-            const c2Len = this._simpsonsArcLength(
+            const c2Len = this._segmentedArcLength(
                 this.points[endi1].point,
                 this.points[endi1].control2,
                 this.points[endi2].control1,
                 this.points[endi2].point,
                 0, endt
             );
+            if (debug) {
+                console.log(`\t\ttEnd ${tEnd.toFixed(4)} requires multiple chords\n` +
+                            `\t\tchord 1 points ${starti1} and ${starti2}, with t values [${startt.toFixed(4)}, 1] yields length ${c1Len.toFixed(4)}\n` +
+                            `\t\tchord 2 points ${endi1} and ${endi2}, with t values [0, ${endt.toFixed(4)}] yields length ${c2Len.toFixed(4)}\n` +
+                            `\t\ttotal length: ${(c1Len + c2Len).toFixed(4)}`);
+            }
             return c1Len + c2Len;
         }
 
-        throw new Error(`Cannot reconcile arc length between ${tStart} and ${tEnd}`);
+        throw new Error(`Cannot reconcile arc length between ${tStart.toFixed(4)} and ${tEnd.toFixed(4)}`);
+    }
+
+    _segmentedArcLength(p0, p1, p2, p3, tStart = 0, tEnd = 1, resolution = 16) {
+        tStart = Math.clamp01(tStart);
+        tEnd = Math.clamp01(tEnd);
+
+        var segments = Math.ceil((tEnd - tStart) * resolution);
+        const distance = new Vec3();
+        let pLast = Spline.getPoint(p0, p1, p2, p3, tStart);
+        let totalLen = 0;
+
+        for (let ii = 1; ii <= segments; ii++) {
+            const t = Math.min(tEnd, tStart + ii / segments);
+            const pCurrent = Spline.getPoint(p0, p1, p2, p3, t);
+            const len = distance.sub2(pCurrent, pLast).length();
+            totalLen += len;
+            pLast = pCurrent.clone();
+        }
+        return totalLen;
     }
 
     _simpsonsArcLength(p0, p1, p2, p3, tStart = 0, tEnd = 1, resolution = 16) {
@@ -262,6 +335,12 @@ class SplinePath {
 
         return length;
     }
+
+    _arcLengthIntegrand(p0, p1, p2, p3, t) {
+        return Spline.getFirstDerivative(p0, p1, p2, p3, t).length();
+    }
+
+    // helpers
 
     getControlPointMode(index) {
         return this.points[index].mode;
