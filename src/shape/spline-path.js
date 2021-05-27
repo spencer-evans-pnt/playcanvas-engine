@@ -157,35 +157,38 @@ class SplinePath {
         let tNext = tLast;
 
         let iterations = 0;
-        const maxIterations = 8;
+        const maxIterations = 16;
 
         if (debug) console.group(`searching for constant speed t with desired distance ${d.toFixed(4)} and total length ${totalLen.toFixed(4)}; initial t: ${tLast.toFixed(4)}`);
 
         // use bisection to get close
         let tMax = 1;
         let tMin = 0;
-        while (tMax - tMin > 0.01 && iterations < maxIterations) {
+        let maxLen = this.getApproxArcLength(0, tMax);
+        let minLen = this.getApproxArcLength(0, tMin);
+        while (maxLen - minLen > 0.1) {
             const tMid = (tMax + tMin) / 2;
-            if (d - this.getApproxArcLength(0, tMid, 1, false) < 0) {
+            const midLen = this.getApproxArcLength(0, tMid, debug);
+            if (d - midLen < 0) {
                 tMax = tMid;
+                maxLen = this.getApproxArcLength(0, tMax);
             } else {
                 tMin = tMid;
+                minLen = this.getApproxArcLength(0, tMin);
             }
-            iterations++;
         }
         tNext = (tMax + tMin) / 2;
-        if (debug) console.log(`found tNext ${tNext.toFixed(4)} using bisection after ${iterations} iterations`);
+        if (debug) console.log(`found tNext ${tNext.toFixed(4)} using bisection`);
 
         // use newton's method to find a more accurate t
-        iterations = 0;
         do {
             tLast = tNext;
             tNext = tLast -
-                ((this.getApproxArcLength(0, tLast, 1, debug) - d) /
+                ((this.getApproxArcLength(0, tLast, debug) - d) /
                  this.getArcLengthIntegrand(tLast, debug));
             iterations++;
             if (debug) console.log(`iteration ${iterations}: ${tLast.toFixed(4)}, ${tNext.toFixed(4)}`);
-        } while (Math.abs(tLast - tNext) > 0.001 && iterations < maxIterations);
+        } while (Math.abs(tLast - tNext) > 0.01 && iterations < maxIterations);
 
         if (debug) {
             if (iterations >= maxIterations) {
@@ -196,10 +199,9 @@ class SplinePath {
             console.groupEnd();
         }
 
-        // revert to our less accurate bisection result?
+        // revert to our less accurate bisection result
         if (iterations === maxIterations) {
-            // tLast = (tMax + tMin) / 2;
-            // tLast = d / totalLen;
+            tLast = (tMax + tMin) / 2;
         }
 
         const { i1, i2, t } = this._pointsForT(tLast);
@@ -232,45 +234,32 @@ class SplinePath {
         return len;
     }
 
-    getApproxArcLength(tStart, tEnd, method = 0, debug = false) {
+    getApproxArcLength(tStart, tEnd, debug = false) {
         const { i1: starti1, i2: starti2, t: startt } = this._pointsForT(tStart);
         const { i1: endi1, i2: endi2, t: endt } = this._pointsForT(tEnd);
 
-        debug = false;
-
         if (starti1 === endi1) {
             // both points are within the same chord
-            let len;
-            if (method === 0) {
-                len = this._segmentedArcLength(
-                    this.points[starti1].point,
-                    this.points[starti1].control2,
-                    this.points[starti2].control1,
-                    this.points[starti2].point,
-                    startt, endt
-                );
-            } else {
-                len = this._simpsonsArcLength(
-                    this.points[starti1].point,
-                    this.points[starti1].control2,
-                    this.points[starti2].control1,
-                    this.points[starti2].point,
-                    startt, endt
-                );
-            }
+            const len = this._simpsonsArcLength(
+                this.points[starti1].point,
+                this.points[starti1].control2,
+                this.points[starti2].control1,
+                this.points[starti2].point,
+                startt, endt
+            );
             if (debug) console.log(`\t\ttEnd ${tEnd.toFixed(4)} requires a single chord\n` +
                                    `\t\tchord uses points ${starti1} and ${starti2}, with t values [${startt.toFixed(4)}, ${endt.toFixed(4)}] yields length ${len.toFixed(4)}`);
             return len;
         } else if (starti2 === endi1) {
             // points are on separate chords; combine
-            const c1Len = this._segmentedArcLength(
+            const c1Len = this._simpsonsArcLength(
                 this.points[starti1].point,
                 this.points[starti1].control2,
                 this.points[starti2].control1,
                 this.points[starti2].point,
                 startt, 1
             );
-            const c2Len = this._segmentedArcLength(
+            const c2Len = this._simpsonsArcLength(
                 this.points[endi1].point,
                 this.points[endi1].control2,
                 this.points[endi2].control1,
