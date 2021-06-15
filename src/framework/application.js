@@ -155,7 +155,7 @@ var _deprecationWarning = false;
  *     var app = this.app;
  * };
  *
- * MyScript.prototype.update = function(dt) {
+ * MyScript.prototype.update = function(dt, unscaledDt) {
  *     // ...and update functions.
  *     var app = this.app;
  * };
@@ -353,6 +353,15 @@ var _deprecationWarning = false;
  */
 
 /**
+ * @name Application#isGamePaused
+ * @type {boolean}
+ * @description Pauses all update calls if true.
+ * @example
+ * // Pause the updates
+ * this.app.isGamePaused = true;
+ */
+
+/**
  * @name Application#autoRender
  * @type {boolean}
  * @description When true, the application's render function is called every frame.
@@ -414,6 +423,7 @@ class Application extends EventHandler {
 
         this.frame = 0; // the total number of frames the application has updated since start() was called
 
+        this.isGamePaused = false;
         this.autoRender = true;
         this.renderNextFrame = false;
 
@@ -1128,8 +1138,9 @@ class Application extends EventHandler {
      * This function is called internally in the application's main loop and
      * does not need to be called explicitly.
      * @param {number} dt - The time delta since the last frame.
+     * @param {number} unscaledDt - The real time delta (no time scale) since the last frame.
      */
-    update(dt) {
+    update(dt, unscaledDt) {
         this.frame++;
 
         this.graphicsDevice.updateClientRect();
@@ -1144,12 +1155,12 @@ class Application extends EventHandler {
         if (script.legacy)
             ComponentSystem.fixedUpdate(1.0 / 60.0, this._inTools);
 
-        ComponentSystem.update(dt, this._inTools);
+        ComponentSystem.update(dt, unscaledDt, this._inTools);
         ComponentSystem.animationUpdate(dt, this._inTools);
-        ComponentSystem.postUpdate(dt, this._inTools);
+        ComponentSystem.postUpdate(dt, unscaledDt, this._inTools);
 
         // fire update event
-        this.fire("update", dt);
+        this.fire("update", dt, unscaledDt);
 
         if (this.controller) {
             this.controller.update(dt);
@@ -2136,6 +2147,7 @@ var makeTick = function (_app) {
         var dt = ms / 1000.0;
         dt = math.clamp(dt, 0, application.maxDeltaTime);
         dt *= application.timeScale;
+        var unscaledDt = dt / application.timeScale;
 
         application._time = currentTime;
 
@@ -2166,7 +2178,9 @@ var makeTick = function (_app) {
             application.graphicsDevice.defaultFramebuffer = null;
         }
 
-        application.update(dt);
+        if(!application.isGamePaused) {
+            application.update(dt, unscaledDt);
+        }
 
         application.fire("framerender");
 

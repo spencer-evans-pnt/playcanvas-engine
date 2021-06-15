@@ -25,9 +25,9 @@ class ComponentSystem extends EventHandler {
     }
 
     // Static class methods
-    static _helper(a, p) {
+    static _helper(a, p, p2) {
         for (var i = 0, l = a.length; i < l; i++) {
-            a[i].f.call(a[i].s, p);
+            a[i].f.call(a[i].s, p, p2);
         }
     }
 
@@ -43,8 +43,8 @@ class ComponentSystem extends EventHandler {
     }
 
     // Update all ComponentSystems
-    static update(dt, inTools) {
-        this._helper(inTools ? this._toolsUpdate : this._update, dt);
+    static update(dt, unscaledDt, inTools) {
+        this._helper(inTools ? this._toolsUpdate : this._update, dt, unscaledDt);
     }
 
     static animationUpdate(dt, inTools) {
@@ -57,8 +57,8 @@ class ComponentSystem extends EventHandler {
     }
 
     // Update all ComponentSystems
-    static postUpdate(dt, inTools) {
-        this._helper(this._postUpdate, dt);
+    static postUpdate(dt, unscaledDt, inTools) {
+        this._helper(this._postUpdate, dt, unscaledDt);
     }
 
     static _init = [];

@@ -313,11 +313,11 @@ class ScriptComponent extends Component {
             this.scripts[i].__initializeAttributes();
     }
 
-    _scriptMethod(script, method, arg) {
+    _scriptMethod(script, method, arg, arg2) {
         // #if _DEBUG
         try {
         // #endif
-            script[method](arg);
+            script[method](arg, arg2);
         // #if _DEBUG
         } catch (ex) {
             // disable script if it fails to call method
@@ -355,7 +355,7 @@ class ScriptComponent extends Component {
         this.onPostStateChange();
     }
 
-    _onUpdate(dt) {
+    _onUpdate(dt, unscaledDt) {
         var self = this;
         var list = self._updateList;
         if (!list.length) return;
@@ -367,14 +367,14 @@ class ScriptComponent extends Component {
         for (list.loopIndex = 0; list.loopIndex < list.length; list.loopIndex++) {
             script = list.items[list.loopIndex];
             if (script.enabled) {
-                self._scriptMethod(script, ScriptComponent.scriptMethods.update, dt);
+                self._scriptMethod(script, ScriptComponent.scriptMethods.update, dt, unscaledDt);
             }
         }
 
         self._endLooping(wasLooping);
     }
 
-    _onPostUpdate(dt) {
+    _onPostUpdate(dt, unscaledDt) {
         var self = this;
         var list = self._postUpdateList;
         if (!list.length) return;
@@ -386,7 +386,7 @@ class ScriptComponent extends Component {
         for (list.loopIndex = 0; list.loopIndex < list.length; list.loopIndex++) {
             script = list.items[list.loopIndex];
             if (script.enabled) {
-                self._scriptMethod(script, ScriptComponent.scriptMethods.postUpdate, dt);
+                self._scriptMethod(script, ScriptComponent.scriptMethods.postUpdate, dt, unscaledDt);
             }
         }
 

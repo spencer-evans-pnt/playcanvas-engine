@@ -193,6 +193,7 @@ class ScriptType extends EventHandler {
      * @name ScriptType#[update]
      * @description Called for enabled (running state) scripts on each tick.
      * @param {number} dt - The delta time in seconds since the last frame.
+     * @param {number} unscaledDt - The real delta time (no time scale) in seconds since the last frame.
      */
 
     /**
@@ -200,6 +201,7 @@ class ScriptType extends EventHandler {
      * @name ScriptType#[postUpdate]
      * @description Called for enabled (running state) scripts on each tick, after update.
      * @param {number} dt - The delta time in seconds since the last frame.
+     * @param {number} unscaledDt - The real delta time (no time scale) in seconds since the last frame.
      */
 
     /**

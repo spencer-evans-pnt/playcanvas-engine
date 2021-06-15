@@ -140,9 +140,9 @@ class ScriptComponentSystem extends ComponentSystem {
         }
     }
 
-    _callComponentMethod(components, name, dt) {
+    _callComponentMethod(components, name, dt, unscaledDt) {
         for (components.loopIndex = 0; components.loopIndex < components.length; components.loopIndex++) {
-            components.items[components.loopIndex][name](dt);
+            components.items[components.loopIndex][name](dt, unscaledDt);
         }
     }
 
@@ -161,14 +161,14 @@ class ScriptComponentSystem extends ComponentSystem {
         this._callComponentMethod(this._enabledComponents, METHOD_POST_INITIALIZE);
     }
 
-    _onUpdate(dt) {
+    _onUpdate(dt, unscaledDt) {
         // call onUpdate on enabled components
-        this._callComponentMethod(this._enabledComponents, METHOD_UPDATE, dt);
+        this._callComponentMethod(this._enabledComponents, METHOD_UPDATE, dt, unscaledDt);
     }
 
-    _onPostUpdate(dt) {
+    _onPostUpdate(dt, unscaledDt) {
         // call onPostUpdate on enabled components
-        this._callComponentMethod(this._enabledComponents, METHOD_POST_UPDATE, dt);
+        this._callComponentMethod(this._enabledComponents, METHOD_POST_UPDATE, dt, unscaledDt);
     }
 
     // inserts the component into the enabledComponents array

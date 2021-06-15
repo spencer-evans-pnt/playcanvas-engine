@@ -111,7 +111,7 @@ createScript.reservedAttributes = reservedAttributes;
  *         // called once on initialize
  *     }
  *
- *     update(dt) {
+ *     update(dt, unscaledDt) {
  *         // called each tick
  *     }
  * }
