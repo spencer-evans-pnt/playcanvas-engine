@@ -355,9 +355,9 @@ var _deprecationWarning = false;
 /**
  * @name Application#isGamePaused
  * @type {boolean}
- * @description Pauses all update calls if true.
+ * @description Sets all update delta times to 0 if true.
  * @example
- * // Pause the updates
+ * // Zero out update delta times
  * this.app.isGamePaused = true;
  */
 
@@ -2146,8 +2146,10 @@ var makeTick = function (_app) {
         var ms = currentTime - (application._time || currentTime);
         var dt = ms / 1000.0;
         dt = math.clamp(dt, 0, application.maxDeltaTime);
+        
+        var unscaledDt = dt;
         dt *= application.timeScale;
-        var unscaledDt = dt / application.timeScale;
+        dt *= application.isGamePaused ? 0 : 1;
 
         application._time = currentTime;
 
@@ -2178,9 +2180,7 @@ var makeTick = function (_app) {
             application.graphicsDevice.defaultFramebuffer = null;
         }
 
-        if(!application.isGamePaused) {
-            application.update(dt, unscaledDt);
-        }
+        application.update(dt, unscaledDt);
 
         application.fire("framerender");
 
