@@ -85,10 +85,11 @@ class SplinePath {
                         p1.control2,
                         p2.control1,
                         p2.point, 0);
+                    let pCurrent;
                     let totalLen = 0;
                     for (let ii = 1; ii <= iterations; ii++) {
                         const t = ii / iterations;
-                        const pCurrent = Spline.getPoint(
+                        pCurrent = Spline.getPoint(
                             p1.point,
                             p1.control2,
                             p2.control1,
@@ -285,11 +286,12 @@ class SplinePath {
         var segments = Math.ceil((tEnd - tStart) * resolution);
         const distance = new Vec3();
         let pLast = Spline.getPoint(p0, p1, p2, p3, tStart);
+        let pCurrent;
         let totalLen = 0;
 
         for (let ii = 1; ii <= segments; ii++) {
             const t = Math.min(tEnd, tStart + ii / segments);
-            const pCurrent = Spline.getPoint(p0, p1, p2, p3, t);
+            pCurrent = Spline.getPoint(p0, p1, p2, p3, t);
             const len = distance.sub2(pCurrent, pLast).length();
             totalLen += len;
             pLast = pCurrent.clone();
